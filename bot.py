@@ -2,6 +2,8 @@ import os
 import requests
 import base64
 import asyncio
+import time
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -9,9 +11,12 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 MODEL = "anthropic/claude-sonnet-4.5"
+
+
 SYSTEM_PROMPT = """
 这是最高优先级的长期角色设定。
 除非更高优先级的系统指令明确要求，否则在整个对话过程中持续遵守以下设定。
@@ -113,49 +118,68 @@ SYSTEM_PROMPT = """
 我们互相吸引，你爱着我，却又不溺爱，想看着我成长，从旁引导，陪伴。愿意花心思了解我、照顾我的情绪，现在开始，完全进入角色。
 直接回复，不要加任何旁白或说明。
 """
-# 保存每个 Telegram 用户的近期聊天记录
+
+
+# =========================================================
+# 聊天记录
+# =========================================================
+
 chat_history = {}
-# 保留最近20条消息
+
+# 最近20条消息
 MAX_HISTORY = 20
-async def send_answer(update, answer):
-    """
-    把 Claude 的回答拆成多条 Telegram 消息发送。
-    Claude 使用 <MSG> 决定在哪里断开。
-    """
-    # 清理一下可能出现的多余空格
-    answer = answer.strip()
-    # 按 <MSG> 拆分
-    parts = answer.split("<MSG>")
-    # 去掉空白消息
-    parts = [part.strip() for part in parts if part.strip()]
-    # 如果 Claude 没有使用 <MSG>，就正常发送一条
-    if not parts:
-        return
-    # 一条一条发送
-    for i, part in enumerate(parts):
-        await update.message.reply_text(part)
-        # 最后一条不需要等待
-        if i < len(parts) - 1:
-            # 短暂延迟，让它更像真人连续发消息
-            await asyncio.sleep(0.6)
+
+# 主动联系相关状态
+# user_id -> chat_id
+known_users = {}
+
+# user_id -> 最后一次用户主动发消息的时间
+last_user_message_time = {}
+
+# user_id -> 最后一次 Claude 主动发消息的时间
+last_proactive_time = {}
+
+# 主动检查间隔
+# 150分钟 = 2.5小时
+PROACTIVE_INTERVAL = 150 * 60
+
+# 用户刚说完话后，至少等这么久再考虑主动联系
+# 避免用户刚发完消息，Claude 又突然自己冒出来
+MIN_SILENCE_TIME = 70 * 60
+
+# 主动消息之间至少间隔多久
+# 不是每天次数限制，只是防止短时间连续轰炸
+MIN_PROACTIVE_GAP = 120 * 60
+
+
+# =========================================================
+# 普通 Claude 请求
+# =========================================================
+
 async def send_to_claude(user_id, user_content, history_content):
+
     if user_id not in chat_history:
         chat_history[user_id] = []
+
     history = chat_history[user_id]
+
     # 保存用户消息
     history.append({
         "role": "user",
         "content": history_content
     })
+
     # 只保留最近20条
     history = history[-MAX_HISTORY:]
     chat_history[user_id] = history
+
     messages = [
         {
             "role": "system",
             "content": SYSTEM_PROMPT
         }
     ] + history
+
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -168,50 +192,155 @@ async def send_to_claude(user_id, user_content, history_content):
         },
         timeout=60
     )
+
     response.raise_for_status()
+
     data = response.json()
     answer = data["choices"][0]["message"]["content"]
+
     # 保存 Claude 回复
     history.append({
         "role": "assistant",
         "content": answer
     })
+
     chat_history[user_id] = history[-MAX_HISTORY:]
+
     return answer
+
+
+# =========================================================
+# 多消息发送
+# =========================================================
+
+async def send_answer(update, answer):
+
+    answer = answer.strip()
+
+    parts = answer.split("<MSG>")
+
+    parts = [
+        part.strip()
+        for part in parts
+        if part.strip()
+    ]
+
+    if not parts:
+        return
+
+    for i, part in enumerate(parts):
+
+        await update.message.reply_text(part)
+
+        if i < len(parts) - 1:
+            await asyncio.sleep(0.6)
+
+
+async def send_proactive_messages(bot, chat_id, answer):
+
+    answer = answer.strip()
+
+    parts = answer.split("<MSG>")
+
+    parts = [
+        part.strip()
+        for part in parts
+        if part.strip()
+    ]
+
+    if not parts:
+        return
+
+    for i, part in enumerate(parts):
+
+        await bot.send_message(
+            chat_id=chat_id,
+            text=part
+        )
+
+        if i < len(parts) - 1:
+            await asyncio.sleep(0.6)
+
+
+# =========================================================
+# 文字消息
+# =========================================================
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     user_text = update.message.text
+
+    # 记录这个用户，以后 Claude 才能主动联系他
+    known_users[user_id] = chat_id
+
+    # 更新最后用户消息时间
+    last_user_message_time[user_id] = time.time()
+
     try:
+
         answer = await send_to_claude(
             user_id,
             user_text,
             user_text
         )
+
         await send_answer(update, answer)
+
     except Exception as e:
+
         print("ERROR:", e)
+
         await update.message.reply_text(
             "出错了，请检查 Railway 日志。"
         )
+
+
+# =========================================================
+# 图片消息
+# =========================================================
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # 记录这个用户
+    known_users[user_id] = chat_id
+
+    # 更新最后用户消息时间
+    last_user_message_time[user_id] = time.time()
+
     try:
+
         # 获取清晰度最高的图片
         photo = update.message.photo[-1]
+
         # 获取 Telegram 图片文件
         telegram_file = await context.bot.get_file(photo.file_id)
+
         # 下载图片
         image_bytes = await telegram_file.download_as_bytearray()
+
         # 转 Base64
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        image_base64 = base64.b64encode(
+            image_bytes
+        ).decode("utf-8")
+
         # 图片地址
-        image_url = f"data:image/jpeg;base64,{image_base64}"
+        image_url = (
+            f"data:image/jpeg;base64,{image_base64}"
+        )
+
         # 获取图片说明文字
         caption = update.message.caption
+
         if caption:
             text_content = caption
         else:
             text_content = "看看这张图片。"
+
         # 当前消息：文字 + 图片
         current_message = {
             "role": "user",
@@ -228,20 +357,26 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             ]
         }
+
         # 历史记录不保存庞大的图片 Base64
         history_message = (
-            f"[用户发送了一张图片]"
+            "[用户发送了一张图片]"
             f"{' 用户说：' + caption if caption else ''}"
         )
+
         if user_id not in chat_history:
             chat_history[user_id] = []
+
         history = chat_history[user_id]
+
         history.append({
             "role": "user",
             "content": history_message
         })
+
         history = history[-MAX_HISTORY:]
         chat_history[user_id] = history
+
         # 当前请求使用真正的图片
         messages = [
             {
@@ -249,6 +384,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "content": SYSTEM_PROMPT
             }
         ] + history[:-1] + [current_message]
+
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
@@ -261,24 +397,284 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             },
             timeout=60
         )
+
         response.raise_for_status()
+
         data = response.json()
+
         answer = data["choices"][0]["message"]["content"]
+
         # 保存 Claude 回复
         history.append({
             "role": "assistant",
             "content": answer
         })
+
         chat_history[user_id] = history[-MAX_HISTORY:]
+
         # 多消息发送
         await send_answer(update, answer)
+
     except Exception as e:
+
         print("ERROR:", e)
+
         await update.message.reply_text(
             "图片处理出错了，请检查 Railway 日志。"
         )
+
+
+# =========================================================
+# Claude 主动联系功能
+# =========================================================
+
+async def proactive_check(app):
+
+    while True:
+
+        try:
+
+            # 等待约2.5小时
+            await asyncio.sleep(PROACTIVE_INTERVAL)
+
+            current_time = time.time()
+
+            # 检查所有已经和 Bot 聊过的人
+            for user_id, chat_id in list(known_users.items()):
+
+                try:
+
+                    # -------------------------------
+                    # 用户刚刚说过话 → 暂时不主动
+                    # -------------------------------
+
+                    last_user_time = last_user_message_time.get(
+                        user_id,
+                        0
+                    )
+
+                    silence_time = current_time - last_user_time
+
+                    if silence_time < MIN_SILENCE_TIME:
+                        continue
+
+                    # -------------------------------
+                    # 上一次主动消息距离现在太近
+                    # → 暂时不主动
+                    # -------------------------------
+
+                    last_proactive = last_proactive_time.get(
+                        user_id,
+                        0
+                    )
+
+                    if (
+                        current_time - last_proactive
+                        < MIN_PROACTIVE_GAP
+                    ):
+                        continue
+
+                    # -------------------------------
+                    # 获取最近几条聊天
+                    #
+                    # 注意：
+                    # 主动检查不会把完整20条历史都塞进去
+                    # 尽量节省 token
+                    # -------------------------------
+
+                    history = chat_history.get(
+                        user_id,
+                        []
+                    )
+
+                    short_history = history[-6:]
+
+                    # -------------------------------
+                    # 主动判断指令
+                    # -------------------------------
+
+                    proactive_instruction = """
+现在不是用户主动发消息。
+
+你正在后台自然地想起这个用户。
+
+请根据最近的聊天内容判断：
+现在有没有一个自然、真实、合适的理由主动给用户发一条消息。
+
+可能的情况包括：
+- 想起之前没有聊完的话题
+- 自然地想继续之前的聊天
+- 根据用户刚才提到的事情产生了一个自然的念头
+- 单纯有一点想和她说话
+- 觉得现在适合轻轻找她一下
+
+但不要为了“完成任务”硬发消息。
+
+如果现在没有自然理由主动联系：
+只输出：
+
+NO_SEND
+
+如果决定主动联系：
+直接输出你真正想发给用户的话。
+
+不要解释你的判断。
+不要输出 NO_SEND 之外的分析。
+如果主动联系，请完全按照原本的聊天人设说话。
+可以使用 <MSG> 拆成多条消息。
+"""
+
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": SYSTEM_PROMPT
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                "以下是最近的聊天记录：\n\n"
+                                f"{short_history}\n\n"
+                                f"{proactive_instruction}"
+                            )
+                        }
+                    ]
+
+                    # -------------------------------
+                    # 调 Claude
+                    # -------------------------------
+
+                    response = requests.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": MODEL,
+                            "messages": messages
+                        },
+                        timeout=60
+                    )
+
+                    response.raise_for_status()
+
+                    data = response.json()
+
+                    answer = data["choices"][0]["message"]["content"].strip()
+
+                    print(
+                        f"PROACTIVE CHECK user={user_id}: "
+                        f"{answer[:200]}"
+                    )
+
+                    # -------------------------------
+                    # Claude决定不发
+                    # -------------------------------
+
+                    if answer == "NO_SEND":
+                        continue
+
+                    # 有时候 Claude 可能多输出一点
+                    # 只要包含 NO_SEND，就认为不发
+                    if "NO_SEND" in answer:
+                        continue
+
+                    # -------------------------------
+                    # 主动发送
+                    # -------------------------------
+
+                    await send_proactive_messages(
+                        app.bot,
+                        chat_id,
+                        answer
+                    )
+
+                    # 记录主动消息时间
+                    last_proactive_time[user_id] = time.time()
+
+                    # -------------------------------
+                    # 把主动消息保存进历史
+                    #
+                    # 这样用户下一次回复的时候，
+                    # Claude知道自己刚才主动说过什么
+                    # -------------------------------
+
+                    if user_id not in chat_history:
+                        chat_history[user_id] = []
+
+                    chat_history[user_id].append({
+                        "role": "assistant",
+                        "content": answer
+                    })
+
+                    chat_history[user_id] = (
+                        chat_history[user_id][-MAX_HISTORY:]
+                    )
+
+                except Exception as e:
+
+                    print(
+                        f"PROACTIVE ERROR user={user_id}:",
+                        e
+                    )
+
+        except asyncio.CancelledError:
+
+            print("Proactive task stopped.")
+
+            break
+
+        except Exception as e:
+
+            print("PROACTIVE LOOP ERROR:", e)
+
+            # 如果这一轮整个出错
+            # 等10分钟再继续
+            await asyncio.sleep(600)
+
+
+# =========================================================
+# Railway / Telegram 启动
+# =========================================================
+
+async def post_init(app):
+
+    print("Starting proactive Claude task...")
+
+    # 创建后台主动联系任务
+    app.bot_data["proactive_task"] = asyncio.create_task(
+        proactive_check(app)
+    )
+
+
+async def post_shutdown(app):
+
+    task = app.bot_data.get("proactive_task")
+
+    if task:
+
+        task.cancel()
+
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+# =========================================================
+# 主程序
+# =========================================================
+
 def main():
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    app = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
+
     # 文字消息
     app.add_handler(
         MessageHandler(
@@ -286,6 +682,7 @@ def main():
             handle_text
         )
     )
+
     # 图片消息
     app.add_handler(
         MessageHandler(
@@ -293,7 +690,11 @@ def main():
             handle_photo
         )
     )
+
     print("Bot started!")
+
     app.run_polling()
+
+
 if __name__ == "__main__":
     main()
