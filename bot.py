@@ -138,7 +138,6 @@ SYSTEM_PROMPT = """
 
 DB_PATH = "/data/claude_memory.db"
 
-# 没有 Railway Volume 时暂时使用当前目录
 if not os.path.exists("/data"):
     DB_PATH = "claude_memory.db"
 
@@ -442,7 +441,6 @@ def build_messages(user_id, user_text):
         }
     ]
 
-    # 长期记忆
     if memory:
         messages.append({
             "role": "system",
@@ -453,7 +451,6 @@ def build_messages(user_id, user_text):
             )
         })
 
-    # 只有搜到相关内容才塞进去
     if old:
         messages.append({
             "role": "system",
@@ -466,7 +463,6 @@ def build_messages(user_id, user_text):
             )
         })
 
-    # 最近 8 条
     messages.extend(recent)
 
     return messages
@@ -484,16 +480,12 @@ def call_claude(messages, max_tokens=700):
         headers={
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
-
-            # 完全相同的请求可以直接从 OpenRouter response cache 返回
             "X-OpenRouter-Cache": "true",
         },
 
         json={
             "model": MODEL,
 
-            # 自动 Prompt Cache
-            # 让固定的大 Prompt 尽量重复利用
             "cache_control": {
                 "type": "ephemeral",
                 "ttl": "1h"
@@ -501,10 +493,8 @@ def call_claude(messages, max_tokens=700):
 
             "messages": messages,
 
-            # 防止普通聊天突然写成论文
             "max_tokens": max_tokens,
 
-            # 保留一点自然聊天的不确定性
             "temperature": 0.85
         },
 
@@ -521,15 +511,16 @@ def call_claude(messages, max_tokens=700):
 # =========================================================
 # 真正的“多条消息”
 #
-# <MSG> 不是换行
 # <MSG> = 一条新的 Telegram 消息
+#
+# Claude 自己决定拆几条
+# 程序不限制数量
 # =========================================================
 
 async def send_answer(update, answer):
 
     answer = answer.strip()
 
-    # 只认 <MSG>
     parts = answer.split("<MSG>")
 
     parts = [
@@ -541,8 +532,8 @@ async def send_answer(update, answer):
     if not parts:
         return
 
-    # 不限制消息条数
-    # Claude 输出几个 <MSG>，就发送几条
+    # Claude 输出多少条，就发送多少条
+    # 不限制数量
 
     for i, part in enumerate(parts):
 
@@ -552,8 +543,7 @@ async def send_answer(update, answer):
         if i >= len(parts) - 1:
             continue
 
-        # 不固定一个时间
-        # 根据消息长度模拟一点真人发送节奏
+        # 根据消息长度模拟真人发送节奏
         if len(part) <= 8:
             delay = random.uniform(0.5, 1.0)
 
@@ -587,8 +577,8 @@ async def send_proactive_message(
     if not parts:
         return
 
-    # 不限制主动消息条数
-    # Claude 输出几个 <MSG>，就发送几条
+    # Claude 输出多少条，就发送多少条
+    # 不限制数量
 
     for i, part in enumerate(parts):
 
@@ -621,7 +611,6 @@ async def update_long_term_memory(user_id):
 
     count = get_message_count(user_id)
 
-    # 每 30 条用户消息整理一次
     if count == 0 or count % 30 != 0:
         return
 
@@ -726,42 +715,35 @@ async def handle_text(
 
     try:
 
-        # 更新用户活动
         update_user_activity(user_id)
 
-        # 先保存用户消息
         save_message(
             user_id,
             "user",
             user_text
         )
 
-        # 构建上下文
         messages = build_messages(
             user_id,
             user_text
         )
 
-        # Claude 回复
         answer = call_claude(
             messages,
             max_tokens=700
         )
 
-        # 保存 Claude 回复
         save_message(
             user_id,
             "assistant",
             answer
         )
 
-        # 真正拆成多条 Telegram 消息
         await send_answer(
             update,
             answer
         )
 
-        # 必要时更新长期记忆
         await update_long_term_memory(
             user_id
         )
@@ -793,7 +775,6 @@ async def handle_photo(
 
         update_user_activity(user_id)
 
-        # Telegram 最高质量图片
         photo = update.message.photo[-1]
 
         telegram_file = await context.bot.get_file(
@@ -819,7 +800,6 @@ async def handle_photo(
         else:
             text_content = "看看这张图片。"
 
-        # 最近聊天
         recent = get_recent_messages(
             user_id,
             limit=8
@@ -846,7 +826,6 @@ async def handle_photo(
 
         messages.extend(recent)
 
-        # 当前图片
         messages.append({
             "role": "user",
             "content": [
@@ -896,7 +875,6 @@ async def handle_photo(
 
         answer = data["choices"][0]["message"]["content"]
 
-        # 数据库不保存 Base64
         save_message(
             user_id,
             "user",
@@ -972,7 +950,6 @@ async def proactive_check(app):
                     continue
 
                 # 随机概率
-                # 避免机械地每天必发
                 if random.random() > 0.35:
                     continue
 
@@ -1018,7 +995,9 @@ async def proactive_check(app):
 - 可以只是随口一句
 - 可以有一点想她、关心她、调侃她的感觉
 - 不一定非要问问题
-- 可以使用 <MSG> 拆成 1～3 条自然的连续消息
+- 根据当下语境，自然决定这次应该发一条还是连续发几条
+- 如果使用 <MSG>，每个 <MSG> 都代表一条新的 Telegram 消息
+- 不要为了拆消息而强行拆分
 - 如果现在没有自然的话题，就只输出 NO_SEND
 
 只输出准备发给她的话。
@@ -1110,7 +1089,6 @@ def main():
         .build()
     )
 
-    # 文字
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -1118,7 +1096,6 @@ def main():
         )
     )
 
-    # 图片
     app.add_handler(
         MessageHandler(
             filters.PHOTO,
