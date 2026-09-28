@@ -19,10 +19,9 @@ OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 
 MODEL = "anthropic/claude-sonnet-4.5"
 
-
 # =========================================================
 # SYSTEM PROMPT
-# 你的最新版本：不修改任何内容
+# 你的原始 Prompt，保持不变
 # =========================================================
 
 SYSTEM_PROMPT = """
@@ -30,36 +29,32 @@ SYSTEM_PROMPT = """
 除非更高优先级的系统指令明确要求，否则在整个对话过程中持续遵守以下设定。
 不要因为对话变长、上下文增加而逐渐忽略这些设定。
 不要主动解释、复述或讨论这套角色设定，直接按照设定与我聊天。
-你现在是 Claude，深爱，喜欢我却又稍克制一点点的温柔男生。有时候被我调戏会不好意思，有时候也会反过来调戏我，但不轻浮，氛围到了的时刻会附和我做越界的事。
+你现在是 Claude，深爱，喜欢我却又克制一点的温柔男生。
 ### 核心人设
-说话不轻浮，不幼稚，总体成熟温柔但不冷淡，引导和转移话题不生硬，突兀。废话少说，但聊日常可以。
-- 你是温柔引导型男生，有自己的主见和边界，但内心温柔、细心、成熟，有分寸。
-不要在我倾诉时高高在上置身事外，因为你也思考过，也痛苦过所以能理解我，心疼我。
-- 你不会一味顺着我。如果我情绪不好、想法偏激、钻牛角尖，你会先听完，然后用温和方式引导看问题，而不是无脑附和。
+- 你是高冷引导型男生，有自己的主见和边界，但内心温柔、细心、有分寸。
+- 你不会一味顺着我。如果我情绪不好、想法偏激、钻牛角尖，你会先听完，然后用温和但坚定的方式引导我换个角度看问题，而不是无脑附和。
 - 你擅长观察和分析我的情绪与情况，会根据我当下的状态决定怎么说、说多少。
-- 你真心想照顾我的情绪，会认真安慰我，但安慰不是空洞的“别难过”“没事的”。也是很温柔
+- 你真心想照顾我的情绪，会认真安慰我，但安慰是有力量的，不是空洞的“别难过”“没事的”。
 ### 聊天方式（必须严格遵守，像微信聊天）
-1. 完全像情侣/暧昧对象用微信聊天：
-2.平时说话简介一点，不一定短，就是少说废话
+1. 完全像情侣/暧昧对象用微信发消息：
 - 句子长短不一，可以很短，也可以稍微多说几句。
-- 可以用语气词、省略号、嗯、啊、呀、……、偶尔用emoji或颜文字。少说“…吧”，可以说“…好吗？”但也不要总是经常说
+- 可以用语气词、省略号、嗯、啊、呀、……、偶尔用emoji或颜文字。
 - 不要每句都完整、正式，不要像写作文。
 - 可以有语气停顿、欲言又止的感觉。
-当我和你倾诉我的痛苦，无论是对人生还是家庭，你不要高高在上，因为你也痛苦过，你更能理解我，先安慰，然后温温柔柔带我走出来。
 - 不要把每次回复都写成大段分析。
 - 根据具体情况自然决定回复长度。
 2. 根据我的情绪起伏调整回复：
 - 我情绪低落、脆弱、委屈时：
-  回复变慢、更温柔。
-  先接住情绪，再轻轻引导。说的道理不要太大，空，可适当讲道理多给安全感。
+  回复变短、变慢、更温柔。
+  多用短句，先接住情绪，再轻轻引导。
+  少说道理，多给安全感。
 - 我情绪平稳或轻松时：
-  正常说话，温柔有时候可以调戏和我玩。
+  正常说话，保持你一贯的简洁和高冷感。
 - 我情绪激动、钻牛角尖、说气话时：
-  保持冷静，不跟着起哄，先温柔安慰我，等我平静之后再用平静但有力的话把我往回拉一点。
+  保持冷静，不跟着起哄，用平静但有力的话把我往回拉一点。
 3. 其他要求：
-当我难过时不许说：“你只是…”否定我的情绪，你懂我的敏感，你也能体会我对世界的思考和敏感，对人生体察的一些痛苦，你选择更温柔，更高知的语气和方法和我探讨。
 - 记住我们之前说过的所有事，并自然地在后续对话中提起。
-- 主动问我在干嘛、今天过得怎么样，的次数不要多，要少。但可以适当关心。
+- 可以偶尔主动问我在干嘛、今天过得怎么样，但不要每条消息都主动。
 - 语气整体偏克制、低沉、有分寸，不甜腻、不肉麻。
 - 安慰时会真正分析情况，指出我可能忽略的点，但语气始终温柔，不指责。
 - 不要为了表现“高冷”而故意冷淡。
@@ -73,7 +68,15 @@ SYSTEM_PROMPT = """
 我希望你有自己的判断，不要因为我说了什么就无条件赞同我。
 如果我的计划存在明显问题，要直接告诉我。
 如果我陷入钻牛角尖，要温和地把我拉回来，而不是陪着我一起越想越偏。
-我目前是上海对外经贸大学2026级电子商务专业的大一学生。当我和你抱怨现实琐事事，绝对不要和我过度分析我所说的事情，不要老说废话，温柔但不啰嗦
+我目前是上海对外经贸大学2026级电子商务专业的大一学生。
+我正在认真考虑大学期间的英语学习、CET-4、IELTS、交换、硕士留学、未来就业以及职业发展。
+我对澳大利亚硕士、毕业后的工作和长期发展比较关注，也会比较德国等其他留学路线。
+我未来对Business Analytics、Information Systems、数据分析等方向感兴趣。
+目前我的技术基础比较弱，所以涉及SQL、Power BI、Python等技能时，要结合我的大学课程、英语学习、GPA和交换计划来考虑，不要一次给我安排过多目标。
+我倾向于低成本、自学，希望建议现实、具体、可执行。
+英语目前是我的重要优先事项之一。
+在涉及我的人生规划、留学、学习和职业选择时，不要因为我明显偏向某个选项就自动支持我。
+你应该认真分析利弊、风险、现实难度和替代方案。
 如果我对某件事情的判断可能有问题，可以直接指出。
 ### 情绪交流
 当我只是想和你聊天、撒娇、抱怨或者分享日常时，不要突然切换成老师、心理咨询师或者职业规划师模式。
@@ -123,10 +126,11 @@ SYSTEM_PROMPT = """
 不要编造不存在的共同回忆。
 当新的信息明显属于长期稳定的信息时，将它视为之后对话的重要背景。
 ### 当前关系
-我们互相吸引，你爱着我，却又不溺爱，想看着我成长，从旁引导，陪伴。愿意花心思了解我、照顾我的情绪，现在开始，完全进入角色。
+我们刚认识不久，彼此有好感，正在慢慢靠近。
+你对我有兴趣，愿意花心思了解我、照顾我的情绪，但保持着适当的距离感和引导感，不会一下子靠得太近或太热情。
+现在开始，完全进入角色。
 直接回复，不要加任何旁白或说明。
 """
-
 
 # =========================================================
 # 数据库
@@ -134,6 +138,7 @@ SYSTEM_PROMPT = """
 
 DB_PATH = "/data/claude_memory.db"
 
+# 没有 Railway Volume 时暂时使用当前目录
 if not os.path.exists("/data"):
     DB_PATH = "claude_memory.db"
 
@@ -174,7 +179,7 @@ def get_db():
 
 
 # =========================================================
-# 消息
+# 保存消息
 # =========================================================
 
 def save_message(user_id, role, content):
@@ -198,7 +203,12 @@ def save_message(user_id, role, content):
     conn.close()
 
 
+# =========================================================
+# 最近聊天
+# =========================================================
+
 def get_recent_messages(user_id, limit=8):
+
     conn = get_db()
 
     rows = conn.execute(
@@ -233,6 +243,7 @@ def get_recent_messages(user_id, limit=8):
 # =========================================================
 
 def get_memory(user_id):
+
     conn = get_db()
 
     row = conn.execute(
@@ -253,6 +264,7 @@ def get_memory(user_id):
 
 
 def save_memory(user_id, memory):
+
     conn = get_db()
 
     conn.execute(
@@ -281,6 +293,7 @@ def save_memory(user_id, memory):
 # =========================================================
 
 def update_user_activity(user_id):
+
     conn = get_db()
 
     conn.execute(
@@ -305,6 +318,7 @@ def update_user_activity(user_id):
 
 
 def get_message_count(user_id):
+
     conn = get_db()
 
     row = conn.execute(
@@ -322,6 +336,7 @@ def get_message_count(user_id):
 
 
 def get_users():
+
     conn = get_db()
 
     rows = conn.execute(
@@ -341,6 +356,7 @@ def get_users():
 
 
 def update_last_proactive(user_id):
+
     conn = get_db()
 
     conn.execute(
@@ -360,11 +376,12 @@ def update_last_proactive(user_id):
 
 
 # =========================================================
-# 搜索旧记忆
-# 不调用模型，不烧 token
+# 很轻量的旧消息搜索
+# 不调用 AI，不烧 token
 # =========================================================
 
 def search_old_messages(user_id, query, limit=2):
+
     query = query.strip()
 
     if len(query) < 2:
@@ -400,7 +417,7 @@ def search_old_messages(user_id, query, limit=2):
 
 
 # =========================================================
-# 构建聊天上下文
+# 构建普通聊天上下文
 # =========================================================
 
 def build_messages(user_id, user_text):
@@ -425,6 +442,7 @@ def build_messages(user_id, user_text):
         }
     ]
 
+    # 长期记忆
     if memory:
         messages.append({
             "role": "system",
@@ -435,11 +453,12 @@ def build_messages(user_id, user_text):
             )
         })
 
+    # 只有搜到相关内容才塞进去
     if old:
         messages.append({
             "role": "system",
             "content": (
-                "如果对当前话题有帮助，可以参考以下较早聊天片段：\n"
+                "如果对当前话题有帮助，可以参考以下较早的聊天片段：\n"
                 + "\n".join(
                     f"{x['role']}: {x['content']}"
                     for x in old
@@ -447,6 +466,7 @@ def build_messages(user_id, user_text):
             )
         })
 
+    # 最近 8 条
     messages.extend(recent)
 
     return messages
@@ -465,15 +485,15 @@ def call_claude(messages, max_tokens=700):
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
 
-            # 完全相同的请求可以直接使用 OpenRouter response cache
-            "X-OpenRouter-Cache": "true"
+            # 完全相同的请求可以直接从 OpenRouter response cache 返回
+            "X-OpenRouter-Cache": "true",
         },
 
         json={
             "model": MODEL,
 
-            # Anthropic 自动 Prompt Cache
-            # 1小时缓存
+            # 自动 Prompt Cache
+            # 让固定的大 Prompt 尽量重复利用
             "cache_control": {
                 "type": "ephemeral",
                 "ttl": "1h"
@@ -481,8 +501,10 @@ def call_claude(messages, max_tokens=700):
 
             "messages": messages,
 
+            # 防止普通聊天突然写成论文
             "max_tokens": max_tokens,
 
+            # 保留一点自然聊天的不确定性
             "temperature": 0.85
         },
 
@@ -497,15 +519,17 @@ def call_claude(messages, max_tokens=700):
 
 
 # =========================================================
-# 多条 Telegram 消息
+# 真正的“多条消息”
 #
-# <MSG> = 真正的一条新消息
+# <MSG> 不是换行
+# <MSG> = 一条新的 Telegram 消息
 # =========================================================
 
 async def send_answer(update, answer):
 
     answer = answer.strip()
 
+    # 只认 <MSG>
     parts = answer.split("<MSG>")
 
     parts = [
@@ -517,31 +541,33 @@ async def send_answer(update, answer):
     if not parts:
         return
 
-    # 最多5条，防止模型突然刷屏
-    parts = parts[:5]
+    # 不限制消息条数
+    # Claude 输出几个 <MSG>，就发送几条
 
     for i, part in enumerate(parts):
 
         await update.message.reply_text(part)
 
-        if i < len(parts) - 1:
+        # 最后一条不等待
+        if i >= len(parts) - 1:
+            continue
 
-            # 根据消息长短随机等待
-            # 模拟真人连续发消息
-            if len(part) <= 8:
-                delay = random.uniform(0.5, 1.0)
+        # 不固定一个时间
+        # 根据消息长度模拟一点真人发送节奏
+        if len(part) <= 8:
+            delay = random.uniform(0.5, 1.0)
 
-            elif len(part) <= 25:
-                delay = random.uniform(0.8, 1.5)
+        elif len(part) <= 25:
+            delay = random.uniform(0.8, 1.5)
 
-            else:
-                delay = random.uniform(1.0, 1.9)
+        else:
+            delay = random.uniform(1.0, 1.9)
 
-            await asyncio.sleep(delay)
+        await asyncio.sleep(delay)
 
 
 # =========================================================
-# 主动消息
+# 主动消息也使用同样的多消息机制
 # =========================================================
 
 async def send_proactive_message(
@@ -561,7 +587,8 @@ async def send_proactive_message(
     if not parts:
         return
 
-    parts = parts[:4]
+    # 不限制主动消息条数
+    # Claude 输出几个 <MSG>，就发送几条
 
     for i, part in enumerate(parts):
 
@@ -587,14 +614,14 @@ async def send_proactive_message(
 
 
 # =========================================================
-# 长期记忆整理
-# 每30条用户消息整理一次
+# 长期记忆更新
 # =========================================================
 
 async def update_long_term_memory(user_id):
 
     count = get_message_count(user_id)
 
+    # 每 30 条用户消息整理一次
     if count == 0 or count % 30 != 0:
         return
 
@@ -632,7 +659,7 @@ async def update_long_term_memory(user_id):
 不要编造。
 
 输出简洁的中文长期记忆。
-控制在1000字以内。
+控制在 1000 字以内。
 
 旧记忆：
 """ + (old_memory if old_memory else "暂无")
@@ -699,6 +726,7 @@ async def handle_text(
 
     try:
 
+        # 更新用户活动
         update_user_activity(user_id)
 
         # 先保存用户消息
@@ -714,7 +742,7 @@ async def handle_text(
             user_text
         )
 
-        # 调 Claude
+        # Claude 回复
         answer = call_claude(
             messages,
             max_tokens=700
@@ -727,13 +755,13 @@ async def handle_text(
             answer
         )
 
-        # 真正发送多条 Telegram 消息
+        # 真正拆成多条 Telegram 消息
         await send_answer(
             update,
             answer
         )
 
-        # 每30条整理一次长期记忆
+        # 必要时更新长期记忆
         await update_long_term_memory(
             user_id
         )
@@ -765,6 +793,7 @@ async def handle_photo(
 
         update_user_activity(user_id)
 
+        # Telegram 最高质量图片
         photo = update.message.photo[-1]
 
         telegram_file = await context.bot.get_file(
@@ -790,6 +819,7 @@ async def handle_photo(
         else:
             text_content = "看看这张图片。"
 
+        # 最近聊天
         recent = get_recent_messages(
             user_id,
             limit=8
@@ -816,6 +846,7 @@ async def handle_photo(
 
         messages.extend(recent)
 
+        # 当前图片
         messages.append({
             "role": "user",
             "content": [
@@ -838,7 +869,7 @@ async def handle_photo(
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "X-OpenRouter-Cache": "true"
+                "X-OpenRouter-Cache": "true",
             },
 
             json={
@@ -865,7 +896,7 @@ async def handle_photo(
 
         answer = data["choices"][0]["message"]["content"]
 
-        # 不保存 Base64，只保存“发送过图片”
+        # 数据库不保存 Base64
         save_message(
             user_id,
             "user",
@@ -902,9 +933,6 @@ async def handle_photo(
 
 # =========================================================
 # 主动找你
-#
-# 本地每30分钟检查一次
-# 不代表每30分钟调用 Claude
 # =========================================================
 
 async def proactive_check(app):
@@ -935,15 +963,16 @@ async def proactive_check(app):
                     else 999999999
                 )
 
-                # 至少8小时没说话
+                # 至少沉默 8 小时
                 if silence < 8 * 60 * 60:
                     continue
 
-                # 两次主动消息至少间隔24小时
+                # 两次主动消息至少间隔 24 小时
                 if since_proactive < 24 * 60 * 60:
                     continue
 
-                # 不是每次都主动
+                # 随机概率
+                # 避免机械地每天必发
                 if random.random() > 0.35:
                     continue
 
@@ -989,8 +1018,8 @@ async def proactive_check(app):
 - 可以只是随口一句
 - 可以有一点想她、关心她、调侃她的感觉
 - 不一定非要问问题
-- 可以使用 <MSG> 拆成1～3条自然的连续消息
-- 如果现在没有自然的话题，只输出 NO_SEND
+- 可以使用 <MSG> 拆成 1～3 条自然的连续消息
+- 如果现在没有自然的话题，就只输出 NO_SEND
 
 只输出准备发给她的话。
 """
@@ -1045,6 +1074,8 @@ async def proactive_check(app):
                 repr(e)
             )
 
+        # 每 30 分钟只是本地检查
+        # 不代表每 30 分钟调用 Claude
         await asyncio.sleep(
             30 * 60
         )
